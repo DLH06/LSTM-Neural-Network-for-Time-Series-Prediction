@@ -5,13 +5,14 @@
 			"Close",
 			"Volume"
 		],
-		"sequence_length": 50,
+		"sequence_length": 51,
 		"train_test_split": 0.85,
-		"normalise": true
+		"normalise": false
 	},
 	"training": {
-		"epochs": 2,
-		"batch_size": 32
+		"epochs": 999999999,
+		"batch_size": 16,
+		"num_workers": 8
 	},
 	"model": {
 		"loss": "mse",

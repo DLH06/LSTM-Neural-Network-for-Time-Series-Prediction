@@ -1,34 +1,55 @@
-import torch
 import torch.nn as nn
 
 
-class Net(nn.Module):
-    def __init__(self, dropout_prob=0.2, input_dim=2):
+class LSTMNet(nn.Module):
+    def __init__(
+        self,
+        input_size=2,
+        hidden_layer_size=32,
+        num_layers=2,
+        output_size=1,
+        dropout=0.2,
+    ):
         super().__init__()
-        self.dropout = nn.Dropout(dropout_prob)
+        self.hidden_layer_size = hidden_layer_size
 
-        self.first_lstm = nn.LSTM(input_dim, 100, batch_first=True)
-        self.second_lstm = nn.LSTM(100, 100)
-        self.third_lstm = nn.LSTM(100, 100)
-        self.linear = nn.Linear(100, 1)
+        self.linear_1 = nn.Linear(input_size, hidden_layer_size)
+        self.relu = nn.ReLU()
+        self.lstm = nn.LSTM(
+            hidden_layer_size,
+            hidden_size=self.hidden_layer_size,
+            num_layers=num_layers,
+            batch_first=True,
+        )
+        self.dropout = nn.Dropout(dropout)
+        self.linear_2 = nn.Linear(num_layers * hidden_layer_size, output_size)
+
+        self.init_weights()
+
+    def init_weights(self):
+        for name, param in self.lstm.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 0.0)
+            elif "weight_ih" in name:
+                nn.init.kaiming_normal_(param)
+            elif "weight_hh" in name:
+                nn.init.orthogonal_(param)
 
     def forward(self, x):
-        o_1, (h_s_1, c_s_1) = self.first_lstm(x)
-        o_1 = self.dropout(o_1)
-        o_2, (h_s_2, c_s_2) = self.second_lstm(o_1)
-        o_3, (h_s_3, c_s_3) = self.third_lstm(o_2)
-        output = self.linear(h_s_3)
+        batchsize = x.shape[0]
 
-        # return o_3, (h_s_3, c_s_3)
-        return output
+        # layer 1
+        x = self.linear_1(x)
+        x = self.relu(x)
 
+        # LSTM layer
+        lstm_out, (h_n, c_n) = self.lstm(x)
 
-if __name__ == '__main__':
-    model = Net()
-    input_sample = torch.rand(3, 50, 2)
-    output = model(input_sample)
-    print(output.shape)
-    # output = output.squeeze(0)
-    output = output.view(-1, 50)
-    print(output.shape)
-    
+        # reshape output from hidden cell into [batch, features] for `linear_2`
+        x = h_n.permute(1, 0, 2).reshape(batchsize, -1)
+
+        # layer 2
+        x = self.dropout(x)
+
+        predictions = self.linear_2(x)
+        return predictions[:, -1]
